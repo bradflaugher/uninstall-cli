@@ -381,6 +381,75 @@ class TestUninstallScriptMacOS:
         # Should handle multiple exclude patterns without error
         assert result.returncode == 0
 
+    def test_interactive_options_displayed(self, script_path, mock_app):
+        """Test that interactive options are displayed in normal mode"""
+        result = subprocess.run(
+            [str(script_path), str(mock_app)],
+            input="n\n",
+            capture_output=True,
+            text=True
+        )
+
+        # Should show interactive options
+        assert "Options:" in result.stdout
+        assert "y - Proceed with deletion" in result.stdout.replace("\033[", "")  # Remove color codes
+        assert "n - Cancel" in result.stdout.replace("\033[", "")
+
+    def test_interactive_strict_mode_options(self, script_path, mock_app):
+        """Test that strict mode shows aggressive option but not stricter"""
+        result = subprocess.run(
+            [str(script_path), "--mode", "strict", str(mock_app)],
+            input="n\n",
+            capture_output=True,
+            text=True
+        )
+
+        output = result.stdout.replace("\033[", "")  # Remove color codes
+        # In strict mode, should show option to go more aggressive but not stricter
+        assert "a - Switch to more aggressive search" in output
+        assert "s - Switch to stricter search" not in output
+
+    def test_interactive_aggressive_mode_options(self, script_path, mock_app):
+        """Test that aggressive mode shows stricter option but not more aggressive"""
+        result = subprocess.run(
+            [str(script_path), "--mode", "aggressive", str(mock_app)],
+            input="n\n",
+            capture_output=True,
+            text=True
+        )
+
+        output = result.stdout.replace("\033[", "")  # Remove color codes
+        # In aggressive mode, should show option to go stricter but not more aggressive
+        assert "s - Switch to stricter search" in output
+        assert "a - Switch to more aggressive search" not in output
+
+    def test_interactive_normal_mode_shows_both_options(self, script_path, mock_app):
+        """Test that normal mode shows both stricter and more aggressive options"""
+        result = subprocess.run(
+            [str(script_path), "--mode", "normal", str(mock_app)],
+            input="n\n",
+            capture_output=True,
+            text=True
+        )
+
+        output = result.stdout.replace("\033[", "")  # Remove color codes
+        # In normal mode, should show both options
+        assert "s - Switch to stricter search" in output
+        assert "a - Switch to more aggressive search" in output
+
+    def test_interactive_exclude_option_always_shown(self, script_path, mock_app):
+        """Test that exclude option is always shown"""
+        for mode in ["strict", "normal", "aggressive"]:
+            result = subprocess.run(
+                [str(script_path), "--mode", mode, str(mock_app)],
+                input="n\n",
+                capture_output=True,
+                text=True
+            )
+
+            output = result.stdout.replace("\033[", "")  # Remove color codes
+            assert "e - Add exclude pattern" in output, f"Exclude option missing in {mode} mode"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -14,6 +14,8 @@ curl -fsSL https://raw.githubusercontent.com/bradflaugher/uninstall-cli/main/ins
 
 ## Usage
 
+### Basic Usage
+
 To uninstall an application, run the `uninstall` command followed by the path to the application:
 
 ```bash
@@ -21,11 +23,79 @@ uninstall /Applications/YourApp.app
 ```
 
 The script will:
-1. Display all files and folders associated with the application
-2. Ask for confirmation before permanently removing them
-3. Use `sudo rm -rf` to completely remove all associated files
+1. Extract app information (name, bundle ID, etc.)
+2. Search for all related files and folders
+3. Display results grouped by search term
+4. Provide interactive options to refine the search
+5. Ask for confirmation before permanently removing files
+6. Use `sudo rm -rf` to completely remove all associated files
 
 **Note:** Files are permanently deleted, not moved to trash.
+
+### Interactive Mode
+
+After viewing the search results, you'll see these options:
+
+- **y** - Proceed with deletion
+- **s** - Switch to stricter search (fewer items)
+- **a** - Switch to more aggressive search (more items)
+- **e** - Add exclude pattern to filter out unwanted matches
+- **n** - Cancel
+
+This allows you to refine the search until you're satisfied with the results.
+
+**Example workflow:**
+```bash
+$ uninstall /Applications/OneDrive.app
+
+# See results including Microsoft Teams, Excel, etc.
+# Choose 's' to switch to strict mode
+# Now only OneDrive-specific files are shown
+# Choose 'y' to proceed with deletion
+```
+
+### Search Modes
+
+Control how aggressively the script searches for related files using the `--mode` flag:
+
+#### Strict Mode (Safest)
+Only searches for exact bundle ID matches:
+```bash
+uninstall --mode strict /Applications/OneDrive.app
+```
+Searches for: `com.microsoft.OneDrive-mac` only
+
+#### Normal Mode (Default)
+Searches for bundle ID and app names, but excludes company names:
+```bash
+uninstall --mode normal /Applications/OneDrive.app
+# or simply:
+uninstall /Applications/OneDrive.app
+```
+Searches for: `OneDrive`, `com.microsoft.OneDrive-mac`, `OneDrive-mac`
+
+**Won't match:** `microsoft` (prevents catching Teams, Excel, etc.)
+
+#### Aggressive Mode
+Includes bundle ID components like company names:
+```bash
+uninstall --mode aggressive /Applications/OneDrive.app
+```
+Searches for: `OneDrive`, `microsoft`, `OneDrive-mac`, `com.microsoft.OneDrive-mac`
+
+**Warning:** May catch related applications from the same company
+
+### Exclude Patterns
+
+Filter out specific matches using the `--exclude` flag (can be used multiple times):
+
+```bash
+# Exclude Teams and Excel files
+uninstall --exclude teams --exclude excel /Applications/OneDrive.app
+
+# Exclude any path containing "word"
+uninstall --exclude word /Applications/Office.app
+```
 
 ### Non-Interactive Mode
 
@@ -33,6 +103,29 @@ For automation or scripting, use the `-y` flag to automatically confirm all prom
 
 ```bash
 uninstall -y /Applications/YourApp.app
+
+# Combine with other flags
+uninstall -y --mode strict /Applications/YourApp.app
+uninstall -y --exclude pattern1 --exclude pattern2 /Applications/YourApp.app
+```
+
+### Common Examples
+
+```bash
+# Safe uninstall - only exact bundle ID matches
+uninstall --mode strict /Applications/Slack.app
+
+# Default uninstall - balanced approach
+uninstall /Applications/Discord.app
+
+# Aggressive uninstall - find everything related
+uninstall --mode aggressive /Applications/Adobe.app
+
+# Exclude specific patterns
+uninstall --exclude creative-cloud /Applications/Photoshop.app
+
+# Non-interactive strict mode
+uninstall -y --mode strict /Applications/TestApp.app
 ```
 
 ## Uninstall

@@ -233,9 +233,6 @@ function main() {
   printf "\n"
 
   # Search each location with appropriate depth
-  # Use associative array to track which term found each path
-  declare -A path_to_term
-
   for location_spec in "${locations[@]}"; do
     location="${location_spec%:*}"
     depth="${location_spec#*:}"
@@ -250,13 +247,6 @@ function main() {
         grep -v "Operation not permitted" | \
         grep -v "Permission denied" | \
         grep -v "Too many levels of symbolic links"))
-
-      # Track which term found each path (for grouping display)
-      for found_path in "${found_paths[@]}"; do
-        if [ -z "${path_to_term[$found_path]}" ]; then
-          path_to_term["$found_path"]="$term"
-        fi
-      done
 
       paths+=("${found_paths[@]}")
     done
@@ -295,10 +285,14 @@ function main() {
   printf "${green}%s${normal}\n" "Found ${#paths[@]} items:"
 
   # Group and display by search term
+  # For bash 3.2 compatibility, we match paths against terms using pattern matching
   for term in "${search_terms[@]}"; do
     term_paths=()
     for path in "${paths[@]}"; do
-      if [ "${path_to_term[$path]}" = "$term" ]; then
+      # Case-insensitive match using lowercase comparison
+      path_lower=$(echo "$path" | tr '[:upper:]' '[:lower:]')
+      term_lower=$(echo "$term" | tr '[:upper:]' '[:lower:]')
+      if [[ "$path_lower" == *"$term_lower"* ]]; then
         term_paths+=("$path")
       fi
     done
@@ -311,15 +305,78 @@ function main() {
 
   printf "\n"
 
-  if [ "$auto_confirm" = true ]; then
-    answer="y"
-    printf "${yellow}%s${normal}\n" "Auto-confirming: deleting ${#paths[@]} items"
-  else
-    printf "$red%s$normal" "Permanently delete ${#paths[@]} items (y or n)? "
-    read -r answer
+  # Interactive mode: allow user to adjust search before deletion
+  if [ "$auto_confirm" = false ]; then
+    while true; do
+      printf "${yellow}%s${normal}\n" "Options:"
+      printf "  ${green}y${normal} - Proceed with deletion\n"
+
+      # Show search mode adjustment options
+      if [ "$search_mode" != "strict" ]; then
+        printf "  ${green}s${normal} - Switch to stricter search (fewer items)\n"
+      fi
+      if [ "$search_mode" != "aggressive" ]; then
+        printf "  ${green}a${normal} - Switch to more aggressive search (more items)\n"
+      fi
+
+      printf "  ${green}e${normal} - Add exclude pattern\n"
+      printf "  ${green}n${normal} - Cancel\n"
+      printf "\n"
+      printf "$red%s$normal" "Choose an option: "
+      read -r answer
+
+      case "$answer" in
+        y)
+          # Proceed with deletion
+          break
+          ;;
+        s)
+          if [ "$search_mode" = "aggressive" ]; then
+            search_mode="normal"
+          elif [ "$search_mode" = "normal" ]; then
+            search_mode="strict"
+          fi
+
+          # Re-run the search with new mode
+          printf "\n${yellow}%s${normal}\n" "Switching to $search_mode mode and re-searching..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        a)
+          if [ "$search_mode" = "strict" ]; then
+            search_mode="normal"
+          elif [ "$search_mode" = "normal" ]; then
+            search_mode="aggressive"
+          fi
+
+          # Re-run the search with new mode
+          printf "\n${yellow}%s${normal}\n" "Switching to $search_mode mode and re-searching..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        e)
+          printf "%s" "Enter pattern to exclude: "
+          read -r exclude_pattern
+          exclude_patterns+=("$exclude_pattern")
+
+          # Re-run the search with new exclude pattern
+          printf "\n${yellow}%s${normal}\n" "Re-searching with exclude pattern '$exclude_pattern'..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        n)
+          printf "%s\n" "Cancelled."
+          exit 0
+          ;;
+        *)
+          printf "${red}%s${normal}\n" "Invalid option. Please choose y, s, a, e, or n."
+          printf "\n"
+          ;;
+      esac
+    done
   fi
-  
-  if [ "$answer" = "y" ]; then
+
+  if [ "$auto_confirm" = true ] || [ "$answer" = "y" ]; then
+    if [ "$auto_confirm" = true ]; then
+      printf "${yellow}%s${normal}\n" "Auto-confirming: deleting ${#paths[@]} items"
+    fi
     printf "%s\n" "Removing files…"
     sleep 1
     
@@ -335,8 +392,6 @@ function main() {
     else
       printf "${yellow}%s${normal}\n" "Done! Removed most items, but $failed items failed (may require additional permissions)."
     fi
-  else
-    printf "%s\n" "Cancelled."
   fi
 }
 
