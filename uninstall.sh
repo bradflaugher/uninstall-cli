@@ -3,23 +3,43 @@
 function main() {
   app_path=""
   auto_confirm=false
+  search_mode="normal"
+  exclude_patterns=()
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case $1 in
       --help)
-        printf "%s\n" "Usage: uninstall.sh [-y] /path/to/app.app"
+        printf "%s\n" "Usage: uninstall.sh [-y] [--mode MODE] [--exclude PATTERN] /path/to/app.app"
         printf "\n"
         printf "%s\n" "This script will find and display all files associated with the app,"
         printf "%s\n" "then ask for confirmation before permanently removing them."
         printf "\n"
         printf "%s\n" "Options:"
-        printf "%s\n" "  -y    Automatically confirm all prompts (non-interactive mode)"
+        printf "%s\n" "  -y                Automatically confirm all prompts (non-interactive mode)"
+        printf "%s\n" "  --mode MODE       Search aggressiveness: strict, normal (default), or aggressive"
+        printf "%s\n" "                      strict:     Only exact bundle ID (safest)"
+        printf "%s\n" "                      normal:     Bundle ID + app/executable names (no company names)"
+        printf "%s\n" "                      aggressive: Includes bundle components like company names"
+        printf "%s\n" "  --exclude PATTERN Exclude files matching pattern (can be used multiple times)"
+        printf "%s\n" "                      Example: --exclude teams --exclude excel"
         exit 0
         ;;
       -y)
         auto_confirm=true
         shift
+        ;;
+      --mode)
+        search_mode="$2"
+        if [[ ! "$search_mode" =~ ^(strict|normal|aggressive)$ ]]; then
+          printf "%s\n" "Error: Invalid mode '$search_mode'. Must be: strict, normal, or aggressive"
+          exit 1
+        fi
+        shift 2
+        ;;
+      --exclude)
+        exclude_patterns+=("$2")
+        shift 2
         ;;
       *)
         app_path="$1"
@@ -30,7 +50,7 @@ function main() {
 
   if [ -z "$app_path" ]; then
     printf "%s\n" "Error: No app path provided"
-    printf "%s\n" "Usage: uninstall.sh [-y] /path/to/app.app"
+    printf "%s\n" "Usage: uninstall.sh [-y] [--mode MODE] [--exclude PATTERN] /path/to/app.app"
     exit 1
   fi
 
@@ -68,6 +88,8 @@ function main() {
   printf "  Bundle ID: %s\n" "$bundle_identifier"
   [ -n "$executable_name" ] && printf "  Executable: %s\n" "$executable_name"
   [ -n "$bundle_name" ] && printf "  Bundle Name: %s\n" "$bundle_name"
+  printf "  Search Mode: ${yellow}%s${normal}\n" "$search_mode"
+  [ ${#exclude_patterns[@]} -gt 0 ] && printf "  Excluding: %s\n" "${exclude_patterns[*]}"
   printf "\n"
 
   # Extract bundle ID components for additional searching
@@ -174,17 +196,34 @@ function main() {
   # Start with the app itself
   paths=("$app_path")
 
-  # Build search terms array
-  search_terms=("$app_name" "$bundle_identifier")
-  [ -n "$executable_name" ] && [ "$executable_name" != "$app_name" ] && search_terms+=("$executable_name")
-  [ -n "$bundle_name" ] && [ "$bundle_name" != "$app_name" ] && search_terms+=("$bundle_name")
-  
-  # Add bundle ID components if they're meaningful (more than 3 chars)
-  for component in "${bundle_components[@]}"; do
-    if [ ${#component} -gt 3 ]; then
-      search_terms+=("$component")
-    fi
-  done
+  # Build search terms array based on mode
+  search_terms=()
+
+  case "$search_mode" in
+    strict)
+      # Only exact bundle ID - safest option
+      search_terms=("$bundle_identifier")
+      ;;
+    normal)
+      # Bundle ID + app/executable/bundle names, but NO company names
+      search_terms=("$app_name" "$bundle_identifier")
+      [ -n "$executable_name" ] && [ "$executable_name" != "$app_name" ] && search_terms+=("$executable_name")
+      [ -n "$bundle_name" ] && [ "$bundle_name" != "$app_name" ] && search_terms+=("$bundle_name")
+      ;;
+    aggressive)
+      # Everything including bundle components (company names, etc.)
+      search_terms=("$app_name" "$bundle_identifier")
+      [ -n "$executable_name" ] && [ "$executable_name" != "$app_name" ] && search_terms+=("$executable_name")
+      [ -n "$bundle_name" ] && [ "$bundle_name" != "$app_name" ] && search_terms+=("$bundle_name")
+
+      # Add bundle ID components if they're meaningful (more than 3 chars)
+      for component in "${bundle_components[@]}"; do
+        if [ ${#component} -gt 3 ]; then
+          search_terms+=("$component")
+        fi
+      done
+      ;;
+  esac
 
   # Remove duplicates from search terms
   search_terms=($(printf "%s\n" "${search_terms[@]}" | sort -u))
@@ -197,10 +236,10 @@ function main() {
   for location_spec in "${locations[@]}"; do
     location="${location_spec%:*}"
     depth="${location_spec#*:}"
-    
+
     # Skip if location doesn't exist
     [ ! -d "$location" ] && continue
-    
+
     for term in "${search_terms[@]}"; do
       # Use -L to follow symlinks, and appropriate maxdepth
       found_paths=($(find -L "$location" -iname "*$term*" -maxdepth "$depth" 2>&1 | \
@@ -208,7 +247,7 @@ function main() {
         grep -v "Operation not permitted" | \
         grep -v "Permission denied" | \
         grep -v "Too many levels of symbolic links"))
-      
+
       paths+=("${found_paths[@]}")
     done
   done
@@ -216,24 +255,128 @@ function main() {
   # Remove duplicates and sort
   paths=($(printf "%s\n" "${paths[@]}" | sort -u))
 
+  # Apply exclude patterns if any
+  if [ ${#exclude_patterns[@]} -gt 0 ]; then
+    filtered_paths=()
+    for path in "${paths[@]}"; do
+      excluded=false
+      for pattern in "${exclude_patterns[@]}"; do
+        if [[ "$path" =~ $pattern ]]; then
+          excluded=true
+          break
+        fi
+      done
+      [ "$excluded" = false ] && filtered_paths+=("$path")
+    done
+
+    excluded_count=$((${#paths[@]} - ${#filtered_paths[@]}))
+    paths=("${filtered_paths[@]}")
+
+    if [ $excluded_count -gt 0 ]; then
+      printf "${yellow}%s${normal}\n" "Excluded $excluded_count items matching exclude patterns"
+    fi
+  fi
+
   if [ ${#paths[@]} -eq 0 ]; then
     printf "${yellow}%s${normal}\n" "No files found to remove."
     exit 0
   fi
 
   printf "${green}%s${normal}\n" "Found ${#paths[@]} items:"
-  printf "%s\n" "${paths[@]}"
+
+  # Group and display by search term
+  # For bash 3.2 compatibility, we match paths against terms using pattern matching
+  for term in "${search_terms[@]}"; do
+    term_paths=()
+    for path in "${paths[@]}"; do
+      # Case-insensitive match using lowercase comparison
+      path_lower=$(echo "$path" | tr '[:upper:]' '[:lower:]')
+      term_lower=$(echo "$term" | tr '[:upper:]' '[:lower:]')
+      if [[ "$path_lower" == *"$term_lower"* ]]; then
+        term_paths+=("$path")
+      fi
+    done
+
+    if [ ${#term_paths[@]} -gt 0 ]; then
+      printf "\n${yellow}Matched by '%s' (${#term_paths[@]} items):${normal}\n" "$term"
+      printf "%s\n" "${term_paths[@]}"
+    fi
+  done
+
   printf "\n"
 
-  if [ "$auto_confirm" = true ]; then
-    answer="y"
-    printf "${yellow}%s${normal}\n" "Auto-confirming: deleting ${#paths[@]} items"
-  else
-    printf "$red%s$normal" "Permanently delete ${#paths[@]} items (y or n)? "
-    read -r answer
+  # Interactive mode: allow user to adjust search before deletion
+  if [ "$auto_confirm" = false ]; then
+    while true; do
+      printf "${yellow}%s${normal}\n" "Options:"
+      printf "  ${green}y${normal} - Proceed with deletion\n"
+
+      # Show search mode adjustment options
+      if [ "$search_mode" != "strict" ]; then
+        printf "  ${green}s${normal} - Switch to stricter search (fewer items)\n"
+      fi
+      if [ "$search_mode" != "aggressive" ]; then
+        printf "  ${green}a${normal} - Switch to more aggressive search (more items)\n"
+      fi
+
+      printf "  ${green}e${normal} - Add exclude pattern\n"
+      printf "  ${green}n${normal} - Cancel\n"
+      printf "\n"
+      printf "$red%s$normal" "Choose an option: "
+      read -r answer
+
+      case "$answer" in
+        y)
+          # Proceed with deletion
+          break
+          ;;
+        s)
+          if [ "$search_mode" = "aggressive" ]; then
+            search_mode="normal"
+          elif [ "$search_mode" = "normal" ]; then
+            search_mode="strict"
+          fi
+
+          # Re-run the search with new mode
+          printf "\n${yellow}%s${normal}\n" "Switching to $search_mode mode and re-searching..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        a)
+          if [ "$search_mode" = "strict" ]; then
+            search_mode="normal"
+          elif [ "$search_mode" = "normal" ]; then
+            search_mode="aggressive"
+          fi
+
+          # Re-run the search with new mode
+          printf "\n${yellow}%s${normal}\n" "Switching to $search_mode mode and re-searching..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        e)
+          printf "%s" "Enter pattern to exclude: "
+          read -r exclude_pattern
+          exclude_patterns+=("$exclude_pattern")
+
+          # Re-run the search with new exclude pattern
+          printf "\n${yellow}%s${normal}\n" "Re-searching with exclude pattern '$exclude_pattern'..."
+          exec "$0" "--mode" "$search_mode" "${exclude_patterns[@]/#/--exclude}" "$app_path"
+          ;;
+        n)
+          printf "%s\n" "Cancelled."
+          exit 0
+          ;;
+        *)
+          printf "${red}%s${normal}\n" "Invalid option. Please choose y, s, a, e, or n."
+          printf "\n"
+          ;;
+      esac
+    done
   fi
-  
-  if [ "$answer" = "y" ]; then
+
+  if [ "$auto_confirm" = true ] || [ "$answer" = "y" ]; then
+    if [ "$auto_confirm" = true ]; then
+      printf "${yellow}%s${normal}\n" "Auto-confirming: deleting ${#paths[@]} items"
+    fi
     printf "%s\n" "Removing files…"
     sleep 1
     
@@ -249,8 +392,6 @@ function main() {
     else
       printf "${yellow}%s${normal}\n" "Done! Removed most items, but $failed items failed (may require additional permissions)."
     fi
-  else
-    printf "%s\n" "Cancelled."
   fi
 }
 
