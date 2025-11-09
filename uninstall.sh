@@ -84,7 +84,7 @@ function main() {
 
   processes=()
   for term in "${search_terms[@]}"; do
-    processes+=($(pgrep -afil "$term" | grep -v "uninstall.sh" | grep -v "grep"))
+    processes+=($(pgrep -afil "$term" | grep -v "$$" | grep -v "uninstall" | grep -v "grep"))
   done
 
   # Remove duplicates
