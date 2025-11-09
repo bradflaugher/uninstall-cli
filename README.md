@@ -14,19 +14,18 @@ curl -fsSL https://raw.githubusercontent.com/bradflaugher/uninstall-cli/main/ins
 
 ## Usage
 
-To uninstall an application, run the `uninstall` command followed by the path to the application. For example:
+To uninstall an application, run the `uninstall` command followed by the path to the application:
 
 ```bash
 uninstall /Applications/YourApp.app
 ```
 
-### Dry Run
+The script will:
+1. Display all files and folders associated with the application
+2. Ask for confirmation before permanently removing them
+3. Use `sudo rm -rf` to completely remove all associated files
 
-To see a list of files that will be deleted without actually deleting them, use the `--dry-run` flag:
-
-```bash
-uninstall --dry-run /Applications/YourApp.app
-```
+**Note:** Files are permanently deleted, not moved to trash.
 
 ## Uninstall
 
