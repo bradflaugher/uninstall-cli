@@ -1,4 +1,4 @@
-# Uninstall CLI
+# Uninstall
 
 This script is an open-source alternative for [App Cleaner](https://freemacsoft.net/appcleaner/) on Mac OS
 
