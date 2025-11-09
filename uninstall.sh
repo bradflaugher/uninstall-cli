@@ -1,14 +1,37 @@
 #! /bin/bash
 
 function main() {
-  app_path="$1"
+  app_path=""
+  auto_confirm=false
 
-  if [ "$1" = "--help" ] || [ -z "$1" ]; then
-    printf "%s\n" "Usage: uninstall.sh /path/to/app.app"
-    printf "\n"
-    printf "%s\n" "This script will find and display all files associated with the app,"
-    printf "%s\n" "then ask for confirmation before permanently removing them."
-    exit 0
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --help)
+        printf "%s\n" "Usage: uninstall.sh [-y] /path/to/app.app"
+        printf "\n"
+        printf "%s\n" "This script will find and display all files associated with the app,"
+        printf "%s\n" "then ask for confirmation before permanently removing them."
+        printf "\n"
+        printf "%s\n" "Options:"
+        printf "%s\n" "  -y    Automatically confirm all prompts (non-interactive mode)"
+        exit 0
+        ;;
+      -y)
+        auto_confirm=true
+        shift
+        ;;
+      *)
+        app_path="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$app_path" ]; then
+    printf "%s\n" "Error: No app path provided"
+    printf "%s\n" "Usage: uninstall.sh [-y] /path/to/app.app"
+    exit 1
   fi
 
   IFS=$'\n'
@@ -69,8 +92,15 @@ function main() {
 
   if [ ${#processes[@]} -gt 0 ]; then
     printf "%s\n" "${processes[@]}"
-    printf "$red%s$normal" "Kill running processes (y or n)? "
-    read -r answer
+    
+    if [ "$auto_confirm" = true ]; then
+      answer="y"
+      printf "${yellow}%s${normal}\n" "Auto-confirming: killing running processes"
+    else
+      printf "$red%s$normal" "Kill running processes (y or n)? "
+      read -r answer
+    fi
+    
     if [ "$answer" = "y" ]; then
       printf "%s\n" "Killing running processes…"
       sleep 1
@@ -195,8 +225,14 @@ function main() {
   printf "%s\n" "${paths[@]}"
   printf "\n"
 
-  printf "$red%s$normal" "Permanently delete ${#paths[@]} items (y or n)? "
-  read -r answer
+  if [ "$auto_confirm" = true ]; then
+    answer="y"
+    printf "${yellow}%s${normal}\n" "Auto-confirming: deleting ${#paths[@]} items"
+  else
+    printf "$red%s$normal" "Permanently delete ${#paths[@]} items (y or n)? "
+    read -r answer
+  fi
+  
   if [ "$answer" = "y" ]; then
     printf "%s\n" "Removing files…"
     sleep 1

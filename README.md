@@ -27,6 +27,14 @@ The script will:
 
 **Note:** Files are permanently deleted, not moved to trash.
 
+### Non-Interactive Mode
+
+For automation or scripting, use the `-y` flag to automatically confirm all prompts:
+
+```bash
+uninstall -y /Applications/YourApp.app
+```
+
 ## Uninstall
 
 To uninstall this tool, run the following command:
@@ -34,3 +42,23 @@ To uninstall this tool, run the following command:
 ```bash
 sudo rm /usr/local/bin/uninstall
 ```
+
+## Development
+
+### Running Tests
+
+This project includes a test suite using pytest. To run the tests:
+
+```bash
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run tests
+pytest tests/ -v
+```
+
+**Note:** Full integration tests require macOS as they test macOS-specific functionality like plist parsing and file discovery.
+
+### Continuous Integration
+
+The project uses GitHub Actions to automatically run tests on every commit. The CI pipeline runs on macOS to ensure full compatibility testing.
