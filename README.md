@@ -6,11 +6,9 @@ The script is created following Sun Knudsen's [How to clean uninstall macOS apps
 
 ## Demo
 
-Watch this video to see the uninstall script in action:
+Watch this demo to see the uninstall script in action:
 
-<div style="position: relative; padding-bottom: 56.25%; height: 0;">
-  <iframe src="https://www.loom.com/embed/f00d1578803b463fa887c88a4bacbfd1" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
-</div>
+![Uninstall Demo](demo.gif)
 
 ## Installation
 
