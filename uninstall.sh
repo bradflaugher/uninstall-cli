@@ -1,9 +1,19 @@
 #! /bin/bash
 
 function main() {
+  dry_run=false
+  app_path=""
+
   if [ "$1" = "--help" ]; then
-    printf "%s\n" "Usage: uninstall-cli.sh /path/to/app.app"
+    printf "%s\n" "Usage: uninstall.sh [--dry-run] /path/to/app.app"
     exit 0
+  fi
+
+  if [ "$1" = "--dry-run" ]; then
+    dry_run=true
+    app_path="$2"
+  else
+    app_path="$1"
   fi
 
   IFS=$'\n'
@@ -11,12 +21,12 @@ function main() {
   red=$(tput setaf 1)
   normal=$(tput sgr0)
 
-  if [ ! -e "$1/Contents/Info.plist" ]; then
+  if [ ! -e "$app_path/Contents/Info.plist" ]; then
     printf "%s\n" "Cannot find app plist"
     exit 1
   fi
 
-  bundle_identifier=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$1/Contents/Info.plist" 2> /dev/null)
+  bundle_identifier=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$app_path/Contents/Info.plist" 2> /dev/null)
 
   if [ "$bundle_identifier" = "" ]; then
     printf "%s\n" "Cannot find app bundle identifier"
@@ -111,6 +121,11 @@ function main() {
   paths=($(printf "%s\n" "${paths[@]}" | sort -u));
 
   printf "%s\n" "${paths[@]}"
+
+  if [ "$dry_run" = true ]; then
+    printf "\n%s\n" "Dry run complete. The files listed above would be moved to trash."
+    exit 0
+  fi
 
   printf "$red%s$normal" "Move app data to trash (y or n)? "
   read -r answer

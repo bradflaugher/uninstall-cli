@@ -6,18 +6,32 @@ The script is created following Sun Knudsen's [How to clean uninstall macOS apps
 
 ## Installation
 
-1. Clone the repo into your computer. Put it somewhere static.
-2. Create an alias in your shell by adding this line
-   ```
-   alias uninstall="~/<your_cloned_path>/uninstall-cli.sh"
-   ```
-   then source your shell.
-3. Usage: In your terminal, 
-   ```
-   uninstall /Applications/<name_of_your_evil_app>.app 
-   ```
+To install, simply run the following command in your terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bradflaugher/uninstall-cli/main/install.sh | bash
+```
 
 ## Usage
+
+To uninstall an application, run the `uninstall` command followed by the path to the application. For example:
+
+```bash
+uninstall /Applications/YourApp.app
 ```
-uninstall-cli.sh /Applications/app_name.app
+
+### Dry Run
+
+To see a list of files that will be deleted without actually deleting them, use the `--dry-run` flag:
+
+```bash
+uninstall --dry-run /Applications/YourApp.app
+```
+
+## Uninstall
+
+To uninstall this tool, run the following command:
+
+```bash
+sudo rm /usr/local/bin/uninstall
 ```
